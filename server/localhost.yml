@@ -1,0 +1,11 @@
+all:
+  hosts:
+    localhost:
+      remote_user: gko
+      zeus_domain: zeus.gko.mj12.pl
+      zeus_use_ssl: yes
+      zeus_git_repo: https://github.com/mivalsten/zeus.git
+      zeus_git_version: goshdarnit
+      zeus_settings: prod_local
+      # remove to disable apt packages, postgres setup and nginx
+      ubuntu: yes

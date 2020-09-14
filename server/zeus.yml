@@ -11,7 +11,7 @@
       user:
         name: zeus
         shell: /bin/bash
-        home: /srv/zeus/
+        home: "{{ zeus_path }}"
 
     - name: www-data user
       user:
@@ -27,7 +27,8 @@
       with_items:
         - python3.6
         - python3.6-dev
-        - postgresql-9.5
+        - python3-psycopg2
+        - postgresql-12
         - libpq-dev
         - libgmp-dev
         - libmpfr-dev
@@ -54,7 +55,7 @@
 
     - name: config dir
       file:
-        path: /srv/zeus/config
+        path: "{{ zeus_path }}"/config
         state: directory
         owner: zeus
         group: zeus
@@ -62,7 +63,7 @@
     - name: secrets.json
       copy:
         src: 'secrets/zeus-secrets-{{ inventory_hostname }}.json'
-        dest: /srv/zeus/config/secrets.json
+        dest: "{{ zeus_path }}"/config/secrets.json
         owner: zeus
         group: zeus
         mode: 0770
@@ -71,7 +72,7 @@
     - name: settings_local.py
       template:
         src: templates/zeus_settings_local.py
-        dest: /srv/zeus/config/settings_local.py
+        dest: "{{ zeus_path }}"/config/settings_local.py
         owner: zeus
         group: zeus
         mode: 0770
@@ -80,7 +81,7 @@
     - name: uwsgi.ini
       template:
         src: templates/zeus_uwsgi.ini
-        dest: /srv/zeus/uwsgi.ini
+        dest: "{{ zeus_path }}"/uwsgi.ini
         owner: zeus
 
     - name: /var/run/zeus
@@ -122,11 +123,16 @@
         state: link
       notify: reload nginx
 
+    - name: Install virtualenv via pip
+      pip:
+        name: virtualenv
+        executable: pip3
+
     - name: make initial virtualenv
       pip:
         name: "{{ item }}"
         state: latest
-        virtualenv: /srv/zeus/virtualenv
+        virtualenv: "{{ zeus_path }}"/virtualenv
         virtualenv_python: python3.6
       become_user: zeus
       with_items:
@@ -138,7 +144,7 @@
     - name: check git repo
       git:
         repo: "{{ zeus_git_repo }}"
-        dest: /srv/zeus/install
+        dest: "{{ zeus_path }}"/install
         version: "{{ zeus_git_version }}"
       become_user: zeus
       register: git_repo
@@ -147,7 +153,7 @@
 
     - name: check version file
       copy:
-        dest: /srv/zeus/version
+        dest: "{{ zeus_path }}"/version
         content: "{{ git_repo.after }}"
         owner: zeus
         group: zeus
@@ -161,7 +167,7 @@
 
       - name: remove version file
         file:
-          path: /srv/zeus/version
+          path: "{{ zeus_path }}"/version
           state: absent
 
       - name: stop services
@@ -173,14 +179,14 @@
       - name: update source
         git:
           repo: "{{ zeus_git_repo }}"
-          dest: /srv/zeus/install
+          dest: "{{ zeus_path }}"/install
           version: "{{ git_repo.after }}"
           refspec: "refs/heads/{{ zeus_git_version }}"
         become_user: zeus
 
       - name: set permissions of data directories
         file:
-          path: "/srv/zeus/install/{{ item }}"
+          path: ""{{ zeus_path }}"/install/{{ item }}"
           state: directory
           owner: zeus
           group: zeus
@@ -194,8 +200,8 @@
 
       - name: symlink settings/local.py
         file:
-          src: /srv/zeus/config/settings_local.py
-          dest: /srv/zeus/install/settings/local.py
+          src: "{{ zeus_path }}"/config/settings_local.py
+          dest: "{{ zeus_path }}"/install/settings/local.py
           state: link
           owner: zeus
           group: zeus
@@ -205,7 +211,7 @@
           . ../virtualenv/bin/activate
           pipenv sync
         args:
-          chdir: /srv/zeus/install
+          chdir: "{{ zeus_path }}"/install
         become_user: zeus
 
       - name: compile translations
@@ -213,7 +219,7 @@
           . ../virtualenv/bin/activate
           ./compile-translations.sh
         args:
-          chdir: /srv/zeus/install
+          chdir: "{{ zeus_path }}"/install
         become_user: zeus
 
       - name: update static files
@@ -222,7 +228,7 @@
           rm -rf sitestatic
           python manage.py collectstatic --noinput
         args:
-          chdir: /srv/zeus/install
+          chdir: "{{ zeus_path }}"/install
         become_user: zeus
 
       - name: start services
@@ -233,7 +239,7 @@
 
       - name: create version file
         copy:
-          dest: /srv/zeus/version
+          dest: "{{ zeus_path }}"/version
           content: "{{ git_repo.after }}"
           owner: zeus
           group: zeus
